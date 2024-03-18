@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using Nuke.Common;
 using Nuke.Common.CI;
 using Nuke.Common.CI.GitHubActions;
@@ -32,12 +34,12 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 [GitHubActions(
         "merge",
         GitHubActionsImage.UbuntuLatest,
-        AutoGenerate = false,
+        AutoGenerate = true,
         OnPullRequestBranches = ["main"],
-        InvokedTargets = [nameof(Pack)],
-        FetchDepth = 0,
-        ImportSecrets = [nameof(NuGetApiKey)])
-        ]
+        InvokedTargets = [nameof(Publish), nameof(Pack)],
+        FetchDepth = 0
+        // ImportSecrets = [nameof(NuGetApiKey)])
+        )]
 class Build : NukeBuild
 {
     /// Support plugins are available for:
@@ -104,10 +106,10 @@ class Build : NukeBuild
         {
             Log.Information("Building version {Value}", MinVer.Version);
             DotNetBuild(_ => _
-                .SetProjectFile(ProjectDirectory)
                 .EnableNoLogo()
                 .EnableNoRestore()
-                .SetConfiguration("Release")
+                .SetProjectFile(Solution.Directory)
+                .SetConfiguration(Configuration)
             );
         });
     IReadOnlyCollection<Output> Outputs;
@@ -122,10 +124,10 @@ class Build : NukeBuild
             var ResultsDirectory = RootDirectory / "TestResults";
             ResultsDirectory.CreateOrCleanDirectory();
             Outputs = DotNetTest(_ => _
-                // .SetProjectFile(TestDirectory)
                 .EnableNoLogo()
-                // .EnableNoBuild()
-                // .EnableNoRestore()
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetConfiguration(Configuration)
                 .SetDataCollector("XPlat Code Coverage")
                 .SetResultsDirectory(ResultsDirectory)
                 .SetRunSetting(
@@ -147,25 +149,38 @@ class Build : NukeBuild
         });
 
     Target Pack => _ => _
-        .Requires(() => Repository.IsOnMainOrMasterBranch())
+        .OnlyWhenStatic(() => SolutionContainsPackableProject())
+        .Requires(() => !IsLocalBuild && IsReleaseBranch)
         .WhenSkipped(DependencyBehavior.Skip)
         .After(Test)
         .DependsOn(Compile)
-        // .Produces(PackDirectory / MinVer.Version / "*.nupkg")
-        .Triggers(Push)
         .Executes(() =>
         {
+            var packableProjects = Solution.GetAllProjects("*").Where(p => p.GetProperty("PackAsTool") == "true").ToList();
+            var proj = packableProjects.First();
+            proj.GetProperty<bool>("IsPackable");
             DotNetPack(_ => _
                 .EnableNoLogo()
                 .EnableNoBuild()
                 .EnableNoRestore()
-                .SetProject(ProjectDirectory)
-                .SetOutputDirectory(PackDirectory / MinVer.Version)
+                .CombineWith(packableProjects, (_, p) => _
+                .SetProject(p.Path)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(PackDirectory / MinVer.Version))
             );
         });
 
+    private bool SolutionContainsPackableProject()
+    {
+        var projects = Solution.GetAllProjects("*");
+        var first = projects.First();
+        var packAsTool = first.GetProperty("PackAsTool");
+        return projects.Any(p => p.GetProperty("PackAsTool") == "true");
+    }
+
     Target Push => _ => _
-        .Requires(() => !IsLocalBuild)
+        // .Requires(() => !IsLocalBuild)
+        // .ProceedAfterFailure()
         .Executes(() =>
         {
             DotNetNuGetPush(_ => _
@@ -176,9 +191,11 @@ class Build : NukeBuild
         });
 
     Target Publish => _ => _
-        .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
+        // .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
+        .Requires(() => !IsLocalBuild && IsReleaseBranch)
         .WhenSkipped(DependencyBehavior.Skip)
         .DependsOn(Compile)
+        .Produces(PackDirectory)
         .Executes(() =>
         {
             PublishDirectory.CreateOrCleanDirectory();
@@ -188,7 +205,15 @@ class Build : NukeBuild
                 .EnableNoBuild()
                 .EnableNoRestore()
                 .SetProject(ProjectDirectory)
+                .SetConfiguration(Configuration)
+                .SetOutput(PublishDirectory)
             );
+            var zipFile = PackDirectory / MinVer.Version / $"{Solution.Name}.zip";
+            PublishDirectory.ZipTo(zipFile, fileMode: FileMode.Create);
         });
+
+    private bool RunFromGithubActionOnReleaseBranch => !IsLocalBuild && Repository.IsOnMainOrMasterBranch();
+    private bool IsReleaseBranch => Repository.IsOnMainOrMasterBranch() || Repository.IsOnReleaseBranch();
+
     bool RepoIsMainOrDevelop => Repository.IsOnDevelopBranch() || Repository.IsOnMainOrMasterBranch();
 }

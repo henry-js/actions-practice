@@ -10,13 +10,13 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/.artifacts/bin/Cli/debug/Cli.dll",
+            "program": "${workspaceFolder}/build/bin/Debug/_build.dll",
             "args": [
-                // "other"
+                "Pack"
             ],
-            "cwd": "${workspaceFolder}/src/Cli",
+            "cwd": "${workspaceFolder}/build",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
-            "console": "externalTerminal",
+            "console": "internalConsole",
             "stopAtEntry": false
         },
         {
