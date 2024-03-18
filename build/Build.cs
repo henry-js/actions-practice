@@ -67,6 +67,7 @@ class Build : NukeBuild
 
     Target Print => _ => _
     .Before(Clean)
+    .AssuredAfterFailure()
     .Executes(() =>
     {
         Log.Information("Minver Version = {Value}", MinVer.Version);
