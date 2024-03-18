@@ -148,51 +148,9 @@ class Build : NukeBuild
             }
         });
 
-    Target Pack => _ => _
-        .OnlyWhenStatic(() => SolutionContainsPackableProject())
-        .Requires(() => !IsLocalBuild && IsReleaseBranch)
-        .WhenSkipped(DependencyBehavior.Skip)
-        .After(Test)
-        .DependsOn(Compile)
-        .Executes(() =>
-        {
-            var packableProjects = Solution.GetAllProjects("*").Where(p => p.GetProperty("PackAsTool") == "true").ToList();
-            var proj = packableProjects.First();
-            proj.GetProperty<bool>("IsPackable");
-            DotNetPack(_ => _
-                .EnableNoLogo()
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .CombineWith(packableProjects, (_, p) => _
-                .SetProject(p.Path)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(PackDirectory / MinVer.Version))
-            );
-        });
-
-    private bool SolutionContainsPackableProject()
-    {
-        var projects = Solution.GetAllProjects("*");
-        var first = projects.First();
-        var packAsTool = first.GetProperty("PackAsTool");
-        return projects.Any(p => p.GetProperty("PackAsTool") == "true");
-    }
-
-    Target Push => _ => _
-        // .Requires(() => !IsLocalBuild)
-        // .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            DotNetNuGetPush(_ => _
-                .SetApiKey(NuGetApiKey)
-                .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
-                .SetSource("https://api.nuget.org/v3/index.json")
-            );
-        });
-
     Target Publish => _ => _
         // .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
-        .Requires(() => !IsLocalBuild && IsReleaseBranch)
+        .Requires(() => IsReleaseBranch)
         .WhenSkipped(DependencyBehavior.Skip)
         .DependsOn(Compile)
         .Produces(PackDirectory)
@@ -212,8 +170,48 @@ class Build : NukeBuild
             PublishDirectory.ZipTo(zipFile, fileMode: FileMode.Create);
         });
 
-    private bool RunFromGithubActionOnReleaseBranch => !IsLocalBuild && Repository.IsOnMainOrMasterBranch();
+    Target Pack => _ => _
+        .OnlyWhenStatic(() => SolutionContainsPackableProject())
+        .Requires(() => IsReleaseBranch)
+        .WhenSkipped(DependencyBehavior.Skip)
+        .After(Test)
+        .DependsOn(Compile)
+        .Executes(() =>
+        {
+            var packableProjects = Solution.GetAllProjects("*").Where(p => p.GetProperty("PackAsTool") == "true").ToList();
+            var proj = packableProjects.First();
+            proj.GetProperty<bool>("IsPackable");
+            DotNetPack(_ => _
+                .EnableNoLogo()
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .CombineWith(packableProjects, (_, p) => _
+                .SetProject(p.Path)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(PackDirectory / MinVer.Version))
+            );
+        });
+
+
+    Target Push => _ => _
+        // .Requires(() => !IsLocalBuild)
+        // .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            DotNetNuGetPush(_ => _
+                .SetApiKey(NuGetApiKey)
+                .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
+                .SetSource("https://api.nuget.org/v3/index.json")
+            );
+        });
+
     private bool IsReleaseBranch => Repository.IsOnMainOrMasterBranch() || Repository.IsOnReleaseBranch();
 
-    bool RepoIsMainOrDevelop => Repository.IsOnDevelopBranch() || Repository.IsOnMainOrMasterBranch();
+    private bool SolutionContainsPackableProject()
+    {
+        var projects = Solution.GetAllProjects("*");
+        var first = projects.First();
+        var packAsTool = first.GetProperty("PackAsTool");
+        return projects.Any(p => p.GetProperty("PackAsTool") == "true");
+    }
 }
