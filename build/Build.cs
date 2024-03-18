@@ -55,15 +55,16 @@ class Build : NukeBuild
     [Parameter][Secret] readonly string NuGetApiKey;
     [GitRepository] readonly GitRepository Repository;
     [MinVer] readonly MinVer MinVer;
+    AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath ProjectDirectory => SourceDirectory / "Cli";
     AbsolutePath ArtifactsDirectory => RootDirectory / ".artifacts";
     AbsolutePath PublishDirectory => RootDirectory / "publish";
     AbsolutePath PackDirectory => RootDirectory / "packages";
-    AbsolutePath SourceDirectory => RootDirectory / "src";
-    AbsolutePath TestDirectory => RootDirectory / "tests" / "commitizen.NET.Tests";
+    AbsolutePath TestDirectory => RootDirectory / "tests";
     IEnumerable<string> Projects => Solution.AllProjects.Select(x => x.Name);
 
     Target Print => _ => _
+    .Before(Clean)
     .Executes(() =>
     {
         Log.Information("Minver Version = {Value}", MinVer.Version);
@@ -75,6 +76,7 @@ class Build : NukeBuild
         Log.Information("main/master branch = {Value}", Repository.IsOnMainOrMasterBranch());
         Log.Information("release/* branch = {Value}", Repository.IsOnReleaseBranch());
         Log.Information("hotfix/* branch = {Value}", Repository.IsOnHotfixBranch());
+        Log.Information("feature/* branch = {Value}", Repository.IsOnFeatureBranch());
 
         Log.Information("Https URL = {Value}", Repository.HttpsUrl);
         Log.Information("SSH URL = {Value}", Repository.SshUrl);
@@ -96,7 +98,8 @@ class Build : NukeBuild
         });
 
     Target Compile => _ => _
-        .DependsOn(Clean, Restore)
+        .DependsOn(Clean, Restore, Print)
+        .After(Print)
         .Executes(() =>
         {
             Log.Information("Building version {Value}", MinVer.Version);
