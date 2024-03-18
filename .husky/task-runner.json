@@ -1,0 +1,28 @@
+{
+   "tasks": [
+      {
+         "name": "welcome-message-example",
+         "command": "bash",
+         "args": [
+            "-c",
+            "echo Husky.Net is awesome!"
+         ],
+         "windows": {
+            "command": "cmd",
+            "args": [
+               "/c",
+               "echo Husky.Net is awesome!"
+            ]
+         }
+      },
+      {
+         "name": "commit-msg-linter",
+         "command": "dotnet",
+         "args": [
+            "czn",
+            "lint",
+            "${args}"
+         ]
+      }
+   ]
+}
