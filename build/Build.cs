@@ -70,7 +70,7 @@ class Build : NukeBuild
     AbsolutePath PublishDirectory => RootDirectory / "publish";
     AbsolutePath PackDirectory => RootDirectory / "packages";
     AbsolutePath SourceDirectory => RootDirectory / "src";
-    AbsolutePath TestDirectory => RootDirectory / "tests" / "commitizen.NET.Tests";
+    AbsolutePath TestDirectory => RootDirectory / "tests";
     IEnumerable<string> Projects => Solution.AllProjects.Select(x => x.Name);
 
     Target Print => _ => _
