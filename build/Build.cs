@@ -36,10 +36,18 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 [GitHubActions(
         "merge",
         GitHubActionsImage.UbuntuLatest,
-        AutoGenerate = false,
+        AutoGenerate = true,
         OnPullRequestBranches = ["main"],
-        InvokedTargets = [nameof(BumpVersion), nameof(Publish)],
+        InvokedTargets = [nameof(Test)],
         FetchDepth = 0)]
+[GitHubActions(
+            "after-merge",
+            GitHubActionsImage.UbuntuLatest,
+            AutoGenerate = true,
+            OnPushBranches = ["main"],
+            InvokedTargets = [nameof(BumpVersion), nameof(Publish)],
+            FetchDepth = 0
+        )]
 [GitHubActions(
     "bumpversion",
     GitHubActionsImage.UbuntuLatest,
