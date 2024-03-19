@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Microsoft.Build.Tasks;
 using Nuke.Common;
 using Nuke.Common.CI;
 using Nuke.Common.CI.GitHubActions;
@@ -28,8 +30,8 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
     "continuous",
     GitHubActionsImage.UbuntuLatest,
     AutoGenerate = true,
-    OnPushBranches = ["develop", "feature/**"],
-    InvokedTargets = [nameof(BumpVersion), nameof(Pack), nameof(Publish)],
+    OnPushBranchesIgnore = ["main"],
+    InvokedTargets = [nameof(Test)],
     FetchDepth = 0)]
 [GitHubActions(
         "merge",
@@ -37,9 +39,7 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
         AutoGenerate = false,
         OnPullRequestBranches = ["main"],
         InvokedTargets = [nameof(BumpVersion), nameof(Publish)],
-        FetchDepth = 0,
-        ImportSecrets = [nameof(NuGetApiKey)])
-        ]
+        FetchDepth = 0)]
 [GitHubActions(
     "bumpversion",
     GitHubActionsImage.UbuntuLatest,
@@ -64,7 +64,7 @@ class Build : NukeBuild
     [Solution(GenerateProjects = true)] readonly Solution Solution;
     [Parameter][Secret] readonly string NuGetApiKey;
     [GitRepository] readonly GitRepository Repository;
-    [MinVer] readonly MinVer MinVer;
+    [MinVer] MinVer MinVer;
     AbsolutePath ProjectDirectory => SourceDirectory / "Cli";
     AbsolutePath ArtifactsDirectory => RootDirectory / ".artifacts";
     AbsolutePath PublishDirectory => RootDirectory / "publish";
@@ -161,18 +161,19 @@ class Build : NukeBuild
             Log.Information("Commit = {Value}", Repository.Commit);
             Log.Information("Branch = {Value}", Repository.Branch);
             Log.Information("Tags = {Value}", Repository.Tags);
-
             // GitTasks.Git("checkout main");
             string tag = "";
 
-            // GitTasks.Git("tag -l", logger: (outType, s) => tag = s);
-            // Log.Information("TagFromGit = {Value}", tag);
-            // GitTasks.Git("pull");
-            // GitTasks.Git("checkout main");
+            MinVerTasks.MinVer("-i", logger: (outType, version) =>
+            {
+                if (outType == OutputType.Std)
+                    tag = version;
+            });
+            Log.Information("Minver Last Tag Version = {Value}", tag);
 
-            MinVerTasks.MinVer("-i", logger: (_, version) => tag = version);
             GitTasks.Git($"tag {tag} -f");
-            GitTasks.Git($"push --tags -f");
+            // GitTasks.Git($"push --tags -f");
+            (MinVer, var output) = MinVerTasks.MinVer(_ => _);
 
             Log.Information("Minver Version = {Value}", MinVer.Version);
             Log.Information("Commit = {Value}", Repository.Commit);
@@ -181,9 +182,10 @@ class Build : NukeBuild
         });
 
     Target Publish => _ => _
-                // .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
-                // .WhenSkipped(DependencyBehavior.Skip)
+                .After(Test)
                 .DependsOn(Compile)
+                .Triggers(Pack)
+                .Produces(PackDirectory)
                 .Executes(() =>
                 {
                     PublishDirectory.CreateOrCleanDirectory();
@@ -193,15 +195,18 @@ class Build : NukeBuild
                         .EnableNoBuild()
                         .EnableNoRestore()
                         .SetProject(ProjectDirectory)
+                        .SetOutput(PublishDirectory)
                     );
+
+                    PublishDirectory.ZipTo(PackDirectory / $"{Solution.Name}.zip", fileMode: FileMode.Create);
                 });
 
     Target Pack => _ => _
                 // .Requires(() => Repository.IsOnMainOrMasterBranch())
-                // .WhenSkipped(DependencyBehavior.Skip)
                 .After(Test)
                 .DependsOn(Compile)
                 .Produces(PackDirectory)
+                .OnlyWhenDynamic(() => SolutionContainsPackableProject())
                 .Executes(() =>
                 {
                     DotNetPack(_ => _
@@ -212,6 +217,13 @@ class Build : NukeBuild
                         .SetOutputDirectory(PackDirectory / MinVer.Version)
                     );
                 });
+
+    private bool SolutionContainsPackableProject()
+    {
+        var packableProjects = Solution.AllProjects.Count(p => p.GetProperty<bool?>("PackAsTool") ?? false);
+        Log.Information("Packable projects found = {Value}", packableProjects);
+        return packableProjects > 0;
+    }
 
     Target Push => _ => _
                 .Requires(() => Repository.IsOnMainOrMasterBranch())

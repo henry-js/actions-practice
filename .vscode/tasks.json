@@ -7,19 +7,19 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/actions_practice.sln",
+                "${workspaceFolder}/actions-practice.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
             "problemMatcher": "$msCompile"
         },
         {
-            "label": "publish",
+            "label": "build-build",
             "command": "dotnet",
             "type": "process",
             "args": [
-                "publish",
-                "${workspaceFolder}/actions_practice.sln",
+                "build",
+                "${workspaceFolder}/build/_build.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/actions_practice.sln"
+                "${workspaceFolder}/actions-practice.sln"
             ],
             "problemMatcher": "$msCompile"
         }
