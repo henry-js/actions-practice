@@ -12,6 +12,7 @@ using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.Coverlet;
 using Nuke.Common.Tools.DotNet;
+using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.MinVer;
 using Nuke.Common.Tools.ReportGenerator;
 using Nuke.Common.Utilities.Collections;
@@ -26,8 +27,8 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
     "continuous",
     GitHubActionsImage.UbuntuLatest,
     AutoGenerate = true,
-    OnPushBranches = ["develop"],
-    InvokedTargets = [nameof(Test)],
+    OnPushBranches = ["develop", "feature/**"],
+    InvokedTargets = [nameof(Test), nameof(BumpVersion)],
     FetchDepth = 0)]
 [GitHubActions(
         "merge",
@@ -41,7 +42,7 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 [GitHubActions(
     "bumpversion",
     GitHubActionsImage.UbuntuLatest,
-    AutoGenerate = true,
+    AutoGenerate = false,
     OnPullRequestBranches = ["main"],
     FetchDepth = 0,
     InvokedTargets = [nameof(BumpVersion)]
@@ -63,7 +64,6 @@ class Build : NukeBuild
     [Parameter][Secret] readonly string NuGetApiKey;
     [GitRepository] readonly GitRepository Repository;
     [MinVer] readonly MinVer MinVer;
-    readonly Tool Git;
     AbsolutePath ProjectDirectory => SourceDirectory / "Cli";
     AbsolutePath ArtifactsDirectory => RootDirectory / ".artifacts";
     AbsolutePath PublishDirectory => RootDirectory / "publish";
@@ -156,7 +156,22 @@ class Build : NukeBuild
         .Before(Compile)
         .Executes(() =>
         {
-            Git("tag ");
+            Log.Information("Minver FileVersion = {Value}", MinVer.FileVersion);
+            Log.Information("Commit = {Value}", Repository.Commit);
+            Log.Information("Branch = {Value}", Repository.Branch);
+            Log.Information("Tags = {Value}", Repository.Tags);
+
+            // GitTasks.Git("checkout main");
+            string tag = "";
+            GitTasks.Git("tag -l", logger: (outType, s) => tag = s);
+            Log.Information("TagFromGit = {Value}", tag);
+            GitTasks.Git("pull");
+            // GitTasks.Git("checkout main");
+
+            Log.Information("Minver Version = {Value}", MinVer.Version);
+            Log.Information("Commit = {Value}", Repository.Commit);
+            Log.Information("Branch = {Value}", Repository.Branch);
+            Log.Information("Tags = {Value}", Repository.Tags);
         });
 
     Target Publish => _ => _

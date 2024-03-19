@@ -20,6 +20,7 @@ on:
   push:
     branches:
       - develop
+      - 'feature/**'
 
 jobs:
   ubuntu-latest:
@@ -36,5 +37,5 @@ jobs:
             .nuke/temp
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
-      - name: 'Run: Test'
-        run: ./build.cmd Test
+      - name: 'Run: Test, BumpVersion'
+        run: ./build.cmd Test BumpVersion
