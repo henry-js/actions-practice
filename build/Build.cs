@@ -137,18 +137,15 @@ class Build : NukeBuild
             var ResultsDirectory = RootDirectory / "TestResults";
             ResultsDirectory.CreateOrCleanDirectory();
             Outputs = DotNetTest(_ => _
-                // .SetProjectFile(TestDirectory)
                 .EnableNoLogo()
-                // .EnableNoBuild()
-                // .EnableNoRestore()
+                .EnableNoBuild()
+                .EnableNoRestore()
                 .SetDataCollector("XPlat Code Coverage")
                 .SetResultsDirectory(ResultsDirectory)
                 .SetRunSetting(
                     "DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByAttribute",
                      "Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute")
                 );
-
-            Log.Information($"Outputs: {Outputs.Count}");
 
             var coverageReport = (RootDirectory / "TestResults").GetFiles("coverage.cobertura.xml", 2).FirstOrDefault();
 
