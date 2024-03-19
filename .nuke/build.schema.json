@@ -76,6 +76,7 @@
           "items": {
             "type": "string",
             "enum": [
+              "BumpVersion",
               "Clean",
               "Compile",
               "Pack",
@@ -97,6 +98,7 @@
           "items": {
             "type": "string",
             "enum": [
+              "BumpVersion",
               "Clean",
               "Compile",
               "Pack",

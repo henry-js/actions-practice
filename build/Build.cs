@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Microsoft.Build.Tasks;
 using Nuke.Common;
 using Nuke.Common.CI;
 using Nuke.Common.CI.GitHubActions;
@@ -12,6 +14,7 @@ using Nuke.Common.ProjectModel;
 using Nuke.Common.Tooling;
 using Nuke.Common.Tools.Coverlet;
 using Nuke.Common.Tools.DotNet;
+using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.MinVer;
 using Nuke.Common.Tools.ReportGenerator;
 using Nuke.Common.Utilities.Collections;
@@ -20,24 +23,39 @@ using static Nuke.Common.EnvironmentInfo;
 using static Nuke.Common.IO.FileSystemTasks;
 using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Nuke.Common.Tools.MinVer.MinVerTasks;
 using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 
 [GitHubActions(
     "continuous",
     GitHubActionsImage.UbuntuLatest,
     AutoGenerate = true,
-    OnPushBranches = ["develop"],
+    OnPushBranchesIgnore = ["main"],
     InvokedTargets = [nameof(Test)],
     FetchDepth = 0)]
 [GitHubActions(
         "merge",
         GitHubActionsImage.UbuntuLatest,
-        AutoGenerate = false,
+        AutoGenerate = true,
         OnPullRequestBranches = ["main"],
-        InvokedTargets = [nameof(Pack)],
-        FetchDepth = 0,
-        ImportSecrets = [nameof(NuGetApiKey)])
-        ]
+        InvokedTargets = [nameof(Test)],
+        FetchDepth = 0)]
+[GitHubActions(
+            "after-merge",
+            GitHubActionsImage.UbuntuLatest,
+            AutoGenerate = true,
+            OnPushBranches = ["main"],
+            InvokedTargets = [nameof(BumpVersion), nameof(Publish)],
+            FetchDepth = 0
+        )]
+[GitHubActions(
+    "bumpversion",
+    GitHubActionsImage.UbuntuLatest,
+    AutoGenerate = false,
+    OnPullRequestBranches = ["main"],
+    FetchDepth = 0,
+    InvokedTargets = [nameof(BumpVersion)]
+)]
 class Build : NukeBuild
 {
     /// Support plugins are available for:
@@ -54,13 +72,13 @@ class Build : NukeBuild
     [Solution(GenerateProjects = true)] readonly Solution Solution;
     [Parameter][Secret] readonly string NuGetApiKey;
     [GitRepository] readonly GitRepository Repository;
-    [MinVer] readonly MinVer MinVer;
+    [MinVer] MinVer MinVer;
     AbsolutePath ProjectDirectory => SourceDirectory / "Cli";
     AbsolutePath ArtifactsDirectory => RootDirectory / ".artifacts";
     AbsolutePath PublishDirectory => RootDirectory / "publish";
     AbsolutePath PackDirectory => RootDirectory / "packages";
     AbsolutePath SourceDirectory => RootDirectory / "src";
-    AbsolutePath TestDirectory => RootDirectory / "tests" / "commitizen.NET.Tests";
+    AbsolutePath TestDirectory => RootDirectory / "tests";
     IEnumerable<string> Projects => Solution.AllProjects.Select(x => x.Name);
 
     Target Print => _ => _
@@ -143,49 +161,87 @@ class Build : NukeBuild
             }
         });
 
-    Target Pack => _ => _
-        .Requires(() => Repository.IsOnMainOrMasterBranch())
-        .WhenSkipped(DependencyBehavior.Skip)
-        .After(Test)
-        .DependsOn(Compile)
-        // .Produces(PackDirectory / MinVer.Version / "*.nupkg")
-        .Triggers(Push)
+    Target BumpVersion => _ => _
+        .Before(Compile)
         .Executes(() =>
         {
-            DotNetPack(_ => _
-                .EnableNoLogo()
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetProject(ProjectDirectory)
-                .SetOutputDirectory(PackDirectory / MinVer.Version)
-            );
-        });
+            Log.Information("Minver FileVersion = {Value}", MinVer.FileVersion);
+            Log.Information("Commit = {Value}", Repository.Commit);
+            Log.Information("Branch = {Value}", Repository.Branch);
+            Log.Information("Tags = {Value}", Repository.Tags);
+            // GitTasks.Git("checkout main");
+            string tag = "";
 
-    Target Push => _ => _
-        .Requires(() => !IsLocalBuild)
-        .Executes(() =>
-        {
-            DotNetNuGetPush(_ => _
-                .SetApiKey(NuGetApiKey)
-                .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
-                .SetSource("https://api.nuget.org/v3/index.json")
-            );
+            MinVerTasks.MinVer("-i", logger: (outType, version) =>
+            {
+                if (outType == OutputType.Std)
+                    tag = version;
+            });
+            Log.Information("Minver Last Tag Version = {Value}", tag);
+
+            GitTasks.Git($"tag {tag} -f");
+            // GitTasks.Git($"push --tags -f");
+            (MinVer, var output) = MinVerTasks.MinVer(_ => _);
+
+            Log.Information("Minver Version = {Value}", MinVer.Version);
+            Log.Information("Commit = {Value}", Repository.Commit);
+            Log.Information("Branch = {Value}", Repository.Branch);
+            Log.Information("Tags = {Value}", Repository.Tags);
         });
 
     Target Publish => _ => _
-        .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
-        .WhenSkipped(DependencyBehavior.Skip)
-        .DependsOn(Compile)
-        .Executes(() =>
-        {
-            PublishDirectory.CreateOrCleanDirectory();
+                .After(Test)
+                .DependsOn(Compile)
+                .Triggers(Pack)
+                .Produces(PackDirectory)
+                .Executes(() =>
+                {
+                    PublishDirectory.CreateOrCleanDirectory();
 
-            DotNetPublish(_ => _
-                .EnableNoLogo()
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetProject(ProjectDirectory)
-            );
-        });
-    bool RepoIsMainOrDevelop => Repository.IsOnDevelopBranch() || Repository.IsOnMainOrMasterBranch();
+                    DotNetPublish(_ => _
+                        .EnableNoLogo()
+                        .EnableNoBuild()
+                        .EnableNoRestore()
+                        .SetProject(ProjectDirectory)
+                        .SetOutput(PublishDirectory)
+                    );
+
+                    PublishDirectory.ZipTo(PackDirectory / $"{Solution.Name}.zip", fileMode: FileMode.Create);
+                });
+
+    Target Pack => _ => _
+                // .Requires(() => Repository.IsOnMainOrMasterBranch())
+                .After(Test)
+                .DependsOn(Compile)
+                .Produces(PackDirectory)
+                .OnlyWhenDynamic(() => SolutionContainsPackableProject())
+                .Executes(() =>
+                {
+                    DotNetPack(_ => _
+                        .EnableNoLogo()
+                        .EnableNoBuild()
+                        .EnableNoRestore()
+                        .SetProject(ProjectDirectory)
+                        .SetOutputDirectory(PackDirectory / MinVer.Version)
+                    );
+                });
+
+    private bool SolutionContainsPackableProject()
+    {
+        var packableProjects = Solution.AllProjects.Count(p => p.GetProperty<bool?>("PackAsTool") ?? false);
+        Log.Information("Packable projects found = {Value}", packableProjects);
+        return packableProjects > 0;
+    }
+
+    Target Push => _ => _
+                .Requires(() => Repository.IsOnMainOrMasterBranch())
+                .DependsOn(Pack)
+                .Executes(() =>
+                {
+                    DotNetNuGetPush(_ => _
+                        .SetApiKey(NuGetApiKey)
+                        .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
+                        .SetSource("https://api.nuget.org/v3/index.json")
+                    );
+                });
 }

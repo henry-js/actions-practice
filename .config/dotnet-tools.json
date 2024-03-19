@@ -13,6 +13,12 @@
       "commands": [
         "czn"
       ]
+    },
+    "minver-cli": {
+      "version": "5.0.0",
+      "commands": [
+        "minver"
+      ]
     }
   }
 }
