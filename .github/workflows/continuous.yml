@@ -37,5 +37,5 @@ jobs:
             .nuke/temp
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
-      - name: 'Run: Test, BumpVersion'
-        run: ./build.cmd Test BumpVersion
+      - name: 'Run: BumpVersion'
+        run: ./build.cmd BumpVersion

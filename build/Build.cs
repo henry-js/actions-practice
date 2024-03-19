@@ -163,11 +163,14 @@ class Build : NukeBuild
 
             // GitTasks.Git("checkout main");
             string tag = "";
-            GitTasks.Git("tag -l", logger: (outType, s) => tag = s);
-            Log.Information("TagFromGit = {Value}", tag);
-            GitTasks.Git("pull");
+
+            // GitTasks.Git("tag -l", logger: (outType, s) => tag = s);
+            // Log.Information("TagFromGit = {Value}", tag);
+            // GitTasks.Git("pull");
             // GitTasks.Git("checkout main");
 
+            MinVerTasks.MinVer("-i", logger: (_, version) => tag = version);
+            GitTasks.Git($"tag {tag} -f");
             Log.Information("Minver Version = {Value}", MinVer.Version);
             Log.Information("Commit = {Value}", Repository.Commit);
             Log.Information("Branch = {Value}", Repository.Branch);
