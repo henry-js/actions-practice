@@ -28,7 +28,7 @@ using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
     GitHubActionsImage.UbuntuLatest,
     AutoGenerate = true,
     OnPushBranches = ["develop", "feature/**"],
-    InvokedTargets = [nameof(Test), nameof(BumpVersion)],
+    InvokedTargets = [nameof(BumpVersion), nameof(Pack), nameof(Publish)],
     FetchDepth = 0)]
 [GitHubActions(
         "merge",
@@ -171,6 +171,8 @@ class Build : NukeBuild
 
             MinVerTasks.MinVer("-i", logger: (_, version) => tag = version);
             GitTasks.Git($"tag {tag} -f");
+            GitTasks.Git($"push --tags -f");
+
             Log.Information("Minver Version = {Value}", MinVer.Version);
             Log.Information("Commit = {Value}", Repository.Commit);
             Log.Information("Branch = {Value}", Repository.Branch);
@@ -178,7 +180,7 @@ class Build : NukeBuild
         });
 
     Target Publish => _ => _
-                .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
+                // .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
                 .WhenSkipped(DependencyBehavior.Skip)
                 .DependsOn(Compile)
                 .Executes(() =>
@@ -194,11 +196,11 @@ class Build : NukeBuild
                 });
 
     Target Pack => _ => _
-                .Requires(() => Repository.IsOnMainOrMasterBranch())
+                // .Requires(() => Repository.IsOnMainOrMasterBranch())
                 .WhenSkipped(DependencyBehavior.Skip)
                 .After(Test)
                 .DependsOn(Compile)
-                // .Produces(PackDirectory / MinVer.Version / "*.nupkg")
+                .Produces(PackDirectory / MinVer.Version / "*.nupkg")
                 .Executes(() =>
                 {
                     DotNetPack(_ => _
