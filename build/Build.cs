@@ -119,10 +119,10 @@ class Build : NukeBuild
         {
             Log.Information("Building version {Value}", MinVer.Version);
             DotNetBuild(_ => _
-                .SetProjectFile(Solution.Directory)
                 .EnableNoLogo()
                 .EnableNoRestore()
-                .SetConfiguration("Release")
+                .SetProjectFile(Solution.Directory)
+                .SetConfiguration(Configuration)
             );
         });
     IReadOnlyCollection<Output> Outputs;
@@ -140,6 +140,7 @@ class Build : NukeBuild
                 .EnableNoLogo()
                 .EnableNoBuild()
                 .EnableNoRestore()
+                .SetConfiguration(Configuration)
                 .SetDataCollector("XPlat Code Coverage")
                 .SetResultsDirectory(ResultsDirectory)
                 .SetRunSetting(
@@ -200,6 +201,7 @@ class Build : NukeBuild
                         .EnableNoRestore()
                         .SetProject(ProjectDirectory)
                         .SetOutput(PublishDirectory)
+                        .SetConfiguration(Configuration)
                     );
 
                     PublishDirectory.ZipTo(PackDirectory / $"{Solution.Name}.zip", fileMode: FileMode.Create);
@@ -218,6 +220,7 @@ class Build : NukeBuild
                         .EnableNoBuild()
                         .EnableNoRestore()
                         .SetProject(ProjectDirectory)
+                        .SetConfiguration(Configuration)
                         .SetOutputDirectory(PackDirectory / MinVer.Version)
                     );
                 });
