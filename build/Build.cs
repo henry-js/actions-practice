@@ -181,7 +181,7 @@ class Build : NukeBuild
 
     Target Publish => _ => _
                 // .Requires(requirement: () => Repository.IsOnMainOrMasterBranch())
-                .WhenSkipped(DependencyBehavior.Skip)
+                // .WhenSkipped(DependencyBehavior.Skip)
                 .DependsOn(Compile)
                 .Executes(() =>
                 {
@@ -197,7 +197,7 @@ class Build : NukeBuild
 
     Target Pack => _ => _
                 // .Requires(() => Repository.IsOnMainOrMasterBranch())
-                .WhenSkipped(DependencyBehavior.Skip)
+                // .WhenSkipped(DependencyBehavior.Skip)
                 .After(Test)
                 .DependsOn(Compile)
                 .Produces(PackDirectory / MinVer.Version / "*.nupkg")
