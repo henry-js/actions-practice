@@ -2,12 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Microsoft.Build.Tasks;
 using Nuke.Common;
-using Nuke.Common.CI;
 using Nuke.Common.CI.GitHubActions;
-using Nuke.Common.CI.GitHubActions.Configuration;
-using Nuke.Common.Execution;
 using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
@@ -17,13 +13,8 @@ using Nuke.Common.Tools.DotNet;
 using Nuke.Common.Tools.Git;
 using Nuke.Common.Tools.MinVer;
 using Nuke.Common.Tools.ReportGenerator;
-using Nuke.Common.Utilities.Collections;
 using Serilog;
-using static Nuke.Common.EnvironmentInfo;
-using static Nuke.Common.IO.FileSystemTasks;
-using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
-using static Nuke.Common.Tools.MinVer.MinVerTasks;
 using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 
 [GitHubActions(
@@ -187,43 +178,43 @@ class Build : NukeBuild
         });
 
     Target Publish => _ => _
-                .After(Test)
-                .DependsOn(Compile)
-                .Triggers(Pack)
-                .Produces(PackDirectory)
-                .Executes(() =>
-                {
-                    PublishDirectory.CreateOrCleanDirectory();
+        .After(Test)
+        .DependsOn(Compile)
+        .Triggers(Pack)
+        .Produces(PackDirectory)
+        .Executes(() =>
+        {
+            PublishDirectory.CreateOrCleanDirectory();
 
-                    DotNetPublish(_ => _
-                        .EnableNoLogo()
-                        .EnableNoBuild()
-                        .EnableNoRestore()
-                        .SetProject(ProjectDirectory)
-                        .SetOutput(PublishDirectory)
-                        .SetConfiguration(Configuration)
-                    );
+            DotNetPublish(_ => _
+                .EnableNoLogo()
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetProject(ProjectDirectory)
+                .SetOutput(PublishDirectory)
+                .SetConfiguration(Configuration)
+            );
 
-                    PublishDirectory.ZipTo(PackDirectory / $"{Solution.Name}.zip", fileMode: FileMode.Create);
-                });
+            PublishDirectory.ZipTo(PackDirectory / $"{Solution.Name}.zip", fileMode: FileMode.Create);
+        });
 
     Target Pack => _ => _
-                // .Requires(() => Repository.IsOnMainOrMasterBranch())
-                .After(Test)
-                .DependsOn(Compile)
-                .Produces(PackDirectory)
-                .OnlyWhenDynamic(() => SolutionContainsPackableProject())
-                .Executes(() =>
-                {
-                    DotNetPack(_ => _
-                        .EnableNoLogo()
-                        .EnableNoBuild()
-                        .EnableNoRestore()
-                        .SetProject(ProjectDirectory)
-                        .SetConfiguration(Configuration)
-                        .SetOutputDirectory(PackDirectory / MinVer.Version)
-                    );
-                });
+        // .Requires(() => Repository.IsOnMainOrMasterBranch())
+        .After(Test)
+        .DependsOn(Compile)
+        .Produces(PackDirectory)
+        .OnlyWhenDynamic(() => SolutionContainsPackableProject())
+        .Executes(() =>
+        {
+            DotNetPack(_ => _
+                .EnableNoLogo()
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetProject(ProjectDirectory)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(PackDirectory / MinVer.Version)
+            );
+        });
 
     private bool SolutionContainsPackableProject()
     {
@@ -233,14 +224,14 @@ class Build : NukeBuild
     }
 
     Target Push => _ => _
-                .Requires(() => Repository.IsOnMainOrMasterBranch())
-                .DependsOn(Pack)
-                .Executes(() =>
-                {
-                    DotNetNuGetPush(_ => _
-                        .SetApiKey(NuGetApiKey)
-                        .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
-                        .SetSource("https://api.nuget.org/v3/index.json")
-                    );
-                });
+        .Requires(() => Repository.IsOnMainOrMasterBranch())
+        .DependsOn(Pack)
+        .Executes(() =>
+        {
+            DotNetNuGetPush(_ => _
+                .SetApiKey(NuGetApiKey)
+                .SetTargetPath(PackDirectory / MinVer.Version / $"commitizen.NET.{MinVer.Version}.nupkg")
+                .SetSource("https://api.nuget.org/v3/index.json")
+            );
+        });
 }
