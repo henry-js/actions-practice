@@ -180,9 +180,8 @@ class Build : NukeBuild
             Log.Information("Minver Last Tag Version = {Value}", tag);
 
             GitTasks.Git($"tag {tag} -f");
-            // GitTasks.Git($"push --tags -f");
+            GitTasks.Git($"push --tags -f");
             (MinVer, var output) = MinVerTasks.MinVer(_ => _);
-
             Log.Information("Minver Version = {Value}", MinVer.Version);
             Log.Information("Commit = {Value}", Repository.Commit);
             Log.Information("Branch = {Value}", Repository.Branch);
