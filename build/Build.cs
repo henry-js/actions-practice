@@ -119,7 +119,7 @@ class Build : NukeBuild
         {
             Log.Information("Building version {Value}", MinVer.Version);
             DotNetBuild(_ => _
-                .SetProjectFile(ProjectDirectory)
+                .SetProjectFile(Solution.Directory)
                 .EnableNoLogo()
                 .EnableNoRestore()
                 .SetConfiguration("Release")
