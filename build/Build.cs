@@ -21,6 +21,7 @@ using static Nuke.Common.EnvironmentInfo;
 using static Nuke.Common.IO.FileSystemTasks;
 using static Nuke.Common.IO.PathConstruction;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Nuke.Common.Tools.MinVer.MinVerTasks;
 using static Nuke.Common.Tools.ReportGenerator.ReportGeneratorTasks;
 
 [GitHubActions(
@@ -200,7 +201,7 @@ class Build : NukeBuild
                 // .WhenSkipped(DependencyBehavior.Skip)
                 .After(Test)
                 .DependsOn(Compile)
-                .Produces(PackDirectory / MinVer.Version / "*.nupkg")
+                .Produces(PackDirectory)
                 .Executes(() =>
                 {
                     DotNetPack(_ => _
